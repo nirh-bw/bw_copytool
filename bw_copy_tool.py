@@ -776,9 +776,17 @@ def main():
         print("❌ Invalid remote name. Exiting.")
         return
 
+    # Prefer last used connection for this BW if available
+    last_conn = get_last_connection_for(bw_name)
+    options = [("1", "Wi-Fi"), ("2", "RJ45 (LAN)")]
+    if last_conn == "RJ45":
+        options = [("2", "RJ45 (LAN) (last used)"), ("1", "Wi-Fi")]
+    elif last_conn == "Wi-Fi":
+        options = [("1", "Wi-Fi (last used)"), ("2", "RJ45 (LAN)")]
+
     print("\n🌐 Select connection type:")
-    print("1. Wi-Fi")
-    print("2. RJ45 (LAN)")
+    for key, label in options:
+        print(f"{key}. {label}")
     conn_type = input("Enter 1 or 2: ").strip()
 
     if conn_type == "1":
@@ -793,6 +801,9 @@ def main():
     else:
         print("❌ Invalid connection type. Exiting.")
         return
+
+    # Persist last used connection for this BW system
+    set_last_connection_for(bw_name, connection_type)
 
     creds = load_cached_credentials()
     if creds:
