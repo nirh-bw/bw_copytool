@@ -188,7 +188,7 @@ def check_folder_overwrite(base_local_path, folder_name):
                 else:
                     print("❌ Invalid name, please try again")
             else:
-                print("❌ Invalid choice. Please enter 'S', 'O', 'R' or 'skip', 'overwrite', 'rename'")
+                print("❌ Invalid choice. Use S/s, O/o, R/r or 'skip', 'overwrite', 'rename'")
     return "proceed"
 
 
