@@ -17,6 +17,8 @@ LOG_FILE = Path(__file__).parent / "bw_tool.log"
 FREE_SPACE_LIMIT_BYTES = 200 * 1024 * 1024 * 1024  # 200 GB
 MAX_RETRIES = 3  # Maximum number of retry attempts
 RETRY_DELAY = 3  # Delay between retries in seconds
+# Remember last connection type per BW system (CSV: BW_NAME,CONNECTION)
+LAST_CONN_FILE = Path(__file__).parent / "bw_last_connections.csv"
 
 # Speed optimization settings
 SPEED_OPTIMIZATION = "auto"  # "rsync", "scp", or "auto"
@@ -116,6 +118,33 @@ def remove_ssh_key(remote_ip):
 def get_local_free_space():
     total, used, free = shutil.disk_usage(Path.cwd())
     return free
+
+
+def _load_last_conn_map():
+    mapping = {}
+    try:
+        if LAST_CONN_FILE.exists():
+            for line in LAST_CONN_FILE.read_text(encoding="utf-8").splitlines():
+                parts = [p.strip() for p in line.split(",")]
+                if len(parts) >= 2 and parts[0] and parts[1]:
+                    mapping[parts[0].upper()] = parts[1]
+    except Exception:
+        pass
+    return mapping
+
+
+def get_last_connection_for(bw_name):
+    return _load_last_conn_map().get(bw_name.upper())
+
+
+def set_last_connection_for(bw_name, connection_type):
+    mapping = _load_last_conn_map()
+    mapping[bw_name.upper()] = connection_type
+    try:
+        lines = [f"{k},{v}" for k, v in sorted(mapping.items())]
+        LAST_CONN_FILE.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    except Exception:
+        pass
 
 
 def ensure_valid_credentials(remote_user, remote_ip, password):
