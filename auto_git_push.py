@@ -47,6 +47,15 @@ def clear_message_file():
         pass
 
 
+def _relative_to_repo(p: Path, repo: Path):
+    try:
+        rel = p.resolve().relative_to(repo.resolve())
+        # Use POSIX-style separators for git
+        return str(rel).replace("\\", "/")
+    except Exception:
+        return None
+
+
 def autopush(path: Path):
     if not has_changes(path):
         return
@@ -58,8 +67,18 @@ def autopush(path: Path):
         user_note = os.environ.get("AUTOPUSH_NOTE", "").strip()
     try:
         subprocess.run(["git", "add", "-A"], cwd=path, check=True)
-        # Build informative commit message from staged changes
+
+        # Never commit the message file itself
+        rel_msg = _relative_to_repo(MESSAGE_FILE, path)
+        if rel_msg:
+            # Unstage message file if staged
+            subprocess.run(["git", "reset", "HEAD", "--", rel_msg], cwd=path, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+        # Build informative commit message from staged changes (after excluding msg file)
         files_res = subprocess.run(["git", "diff", "--cached", "--name-only"], cwd=path, capture_output=True, text=True)
+        if not files_res.stdout.strip():
+            # Nothing staged after excluding the message file
+            return
         stat_res = subprocess.run(["git", "diff", "--cached", "--stat"], cwd=path, capture_output=True, text=True)
         files_list = "\n".join(f"- {line}" for line in files_res.stdout.strip().splitlines() if line)
         stat_block = stat_res.stdout.strip()
@@ -101,6 +120,7 @@ def walk_mtimes(path: Path) -> int:
 
 def main():
     print(f"🚀 auto_git_push watching: {REPO_PATH}")
+    print(f"📝 message file: {MESSAGE_FILE}")
     if not is_git_repo(REPO_PATH):
         print("❌ Not a git repository.")
         sys.exit(1)
