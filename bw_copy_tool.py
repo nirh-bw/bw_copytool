@@ -81,7 +81,7 @@ def log_session_end(bw_name, total_operations=0, successful_operations=0):
 
 def print_banner():
     print("=" * 60)
-    print("\U0001F4E6  Welcome to the BW Recordings Copy Tool  \U0001F4E6")
+    print("\U0001F4E6  Welcome to the BW Copy Tool  \U0001F4E6")
     print("=" * 60)
 
 
