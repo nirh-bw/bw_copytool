@@ -118,6 +118,31 @@ def get_local_free_space():
     return free
 
 
+def ensure_valid_credentials(remote_user, remote_ip, password):
+    """Verify SSH credentials; if invalid, prompt user to re-enter and update cache."""
+    print("\n🔐 Verifying SSH credentials...")
+    # Quick sanity check for obviously bad cached usernames (e.g., '1'/'2' from menu input)
+    if not remote_user or remote_user.isdigit():
+        print("❌ Cached username looks invalid. Please re-enter your SSH credentials.")
+    else:
+        if check_ssh_connection(remote_user, remote_ip, password):
+            return remote_user, password
+        print("❌ Cached credentials failed. Please re-enter your SSH username and password.")
+
+    for attempt in range(3):
+        new_user = input("👤 Enter remote SSH username: ").strip()
+        new_pass = getpass.getpass("🔐 Enter SSH password: ").strip()
+        if check_ssh_connection(new_user, remote_ip, new_pass):
+            cache_credentials(new_user, new_pass)
+            print("✅ Credentials verified and updated.")
+            return new_user, new_pass
+        else:
+            print("❌ Authentication failed. Please try again.")
+
+    print("⚠️  Using existing credentials; authentication may fail.")
+    return remote_user, password
+
+
 def run_with_retry(cmd, description="command", max_retries=MAX_RETRIES, delay=RETRY_DELAY, capture_output=True):
     """Run a command with retry logic and exponential backoff"""
     for attempt in range(max_retries):
@@ -606,12 +631,12 @@ def copy_logs(remote_user, remote_ip, password, bw_name):
                 except:
                     pass
         
-        result = process.wait()
+        exit_code = process.wait()
     finally:
         # Complete the progress bar
         progress_bar.finish()
 
-    if result.returncode == 0:
+    if exit_code == 0:
         print(f"✅ Copied logs successfully to {base_local_path}")
         log_action("COPY_LOGS", "logs", "SUCCESS")
         log_file_operation("COPY_LOGS_SUCCESS", "logs", "", "SUCCESS", f"Local path: {base_local_path}")
@@ -674,12 +699,12 @@ def copy_bags(remote_user, remote_ip, password, bw_name):
                 except:
                     pass
         
-        result = process.wait()
+        exit_code = process.wait()
     finally:
         # Complete the progress bar
         progress_bar.finish()
 
-    if result.returncode == 0:
+    if exit_code == 0:
         print(f"✅ Copied bags successfully to {base_local_path}")
         log_action("COPY_BAGS", "bags", "SUCCESS")
         log_file_operation("COPY_BAGS_SUCCESS", "bags", "", "SUCCESS", f"Local path: {base_local_path}")
@@ -746,6 +771,9 @@ def main():
         remote_user = input("👤 Enter remote SSH username: ").strip()
         password = getpass.getpass("🔐 Enter SSH password: ").strip()
         cache_credentials(remote_user, password)
+
+    # Verify credentials and re-prompt if needed
+    remote_user, password = ensure_valid_credentials(remote_user, remote_ip, password)
 
     # Log session start
     log_session_start(bw_name, connection_type, remote_ip, remote_user)
