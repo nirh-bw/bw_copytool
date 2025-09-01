@@ -262,11 +262,14 @@ class ProgressBar:
         sys.stdout.write(status_line)
         sys.stdout.flush()
     
-    def finish(self):
-        """Complete the progress display"""
+    def finish(self, bytes_transferred_override=None):
+        """Complete the progress display. Optionally override bytes for accurate average speed."""
         elapsed = time.time() - self.start_time
         if elapsed > 0:
-            avg_speed = self.total_size / elapsed / (1024 * 1024)  # MB/s
+            used_bytes = bytes_transferred_override if bytes_transferred_override is not None else (
+                self.total_size if self.total_size > 0 else self.current_size
+            )
+            avg_speed = used_bytes / elapsed / (1024 * 1024)  # MB/s
             print(f"\n✅ {self.description} completed in {elapsed:.1f}s | Average speed: {avg_speed:.1f} MB/s")
 
 
@@ -565,8 +568,8 @@ def copy_folder(remote_user, remote_ip, remote_path, folder, password, bw_name):
             result = process.returncode
         
     finally:
-        # Complete the progress bar
-        progress_bar.finish()
+        # Complete the progress bar with accurate bytes (folder size if known)
+        progress_bar.finish(bytes_transferred_override=total_size if total_size > 0 else None)
     
     if result == 0:
         print(f"✅ Copy completed successfully!")
@@ -633,8 +636,17 @@ def copy_logs(remote_user, remote_ip, password, bw_name):
         
         exit_code = process.wait()
     finally:
-        # Complete the progress bar
-        progress_bar.finish()
+        # For bags/logs we don't have a precise total size.
+        # Estimate bytes transferred by summing destination folder size at end.
+        try:
+            dest_size_cmd = f"du -sb '{base_local_path}' | cut -f1"
+            # Use local shell; on Linux 'du' exists. On Windows WSL/remote usage not intended here.
+            # Fallback to Python walk if 'du' not available.
+            completed = subprocess.run(dest_size_cmd, shell=True, capture_output=True, text=True)
+            dest_bytes = int(completed.stdout.strip()) if completed.returncode == 0 and completed.stdout.strip().isdigit() else None
+        except:
+            dest_bytes = None
+        progress_bar.finish(bytes_transferred_override=dest_bytes)
 
     if exit_code == 0:
         print(f"✅ Copied logs successfully to {base_local_path}")
@@ -652,21 +664,10 @@ def copy_bags(remote_user, remote_ip, password, bw_name):
     """Copy bags from /bwr/cramim/debrief/archive/bags"""
     base_local_path = Path.cwd() / "bw_storage" / bw_name / "bags"
     
-    # Check for folder overwrite
-    overwrite_action = check_folder_overwrite(base_local_path, "bags")
-    if overwrite_action == "skip":
-        log_file_operation("COPY_BAGS_SKIPPED", "bags", "", "USER_SKIP", "User chose to skip existing bags folder")
-        return False
-    elif overwrite_action.startswith("rename:"):
-        new_name = overwrite_action.split(":")[1]
-        base_local_path = Path.cwd() / "bw_storage" / bw_name / new_name
-        print(f"📝 Will copy to renamed folder: {new_name}")
-        log_file_operation("COPY_BAGS_RENAMED", "bags", "", "RENAMED", f"Renamed to: {new_name}")
-    elif overwrite_action == "overwrite":
-        print(f"🗑️  Removing existing bags folder: {base_local_path}")
-        shutil.rmtree(base_local_path, ignore_errors=True)
-        log_file_operation("COPY_BAGS_OVERWRITE", "bags", "", "OVERWRITE", f"Existing folder removed: {base_local_path}")
-    
+    # Merge behavior: if destination exists, do not prompt or delete; just add missing content
+    if base_local_path.exists():
+        print(f"📥 Merging bags into existing folder: {base_local_path}")
+        log_file_operation("COPY_BAGS_MERGE", "bags", "", "MERGE", f"Merging into existing: {base_local_path}")
     base_local_path.mkdir(parents=True, exist_ok=True)
     remote_folder = f"{remote_user}@{remote_ip}:/bwr/cramim/debrief/archive/bags"
     
@@ -677,7 +678,8 @@ def copy_bags(remote_user, remote_ip, password, bw_name):
     progress_bar = ProgressBar(0, "Copying bags")  # Size unknown for bags
     
     try:
-        cmd = f"sshpass -p '{password}' rsync -av --progress --no-compress --partial --info=progress2 -e \"ssh -o Compression=no -o TCPKeepAlive=yes -o ServerAliveInterval=60 -o Ciphers=aes128-gcm@openssh.com\" '{remote_folder}/' '{base_local_path}/'"
+        # --update avoids overwriting newer local files; no delete to preserve existing content
+        cmd = f"sshpass -p '{password}' rsync -av --update --progress --no-compress --partial --info=progress2 -e \"ssh -o Compression=no -o TCPKeepAlive=yes -o ServerAliveInterval=60 -o Ciphers=aes128-gcm@openssh.com\" '{remote_folder}/' '{base_local_path}/'"
         
         # Run rsync with real-time progress parsing
         process = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1, universal_newlines=True)
