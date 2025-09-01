@@ -5,6 +5,7 @@ import subprocess
 from pathlib import Path
 
 REPO_PATH = Path(sys.argv[1]).resolve() if len(sys.argv) > 1 else Path.cwd()
+MESSAGE_FILE = Path(os.environ.get("AUTOPUSH_MSG_FILE", REPO_PATH / ".autopush_message.txt"))
 DEBOUNCE_SECONDS = float(os.environ.get("AUTOPUSH_DEBOUNCE", "3"))
 IGNORE_DIRS = {".git", "node_modules", ".venv", "venv"}
 
@@ -27,12 +28,34 @@ def has_changes(path: Path) -> bool:
     return bool(res.stdout.strip())
 
 
+def read_message_file() -> str:
+    try:
+        if MESSAGE_FILE.exists() and MESSAGE_FILE.is_file():
+            content = MESSAGE_FILE.read_text(encoding="utf-8").strip()
+            return content
+    except Exception:
+        pass
+    return ""
+
+
+def clear_message_file():
+    try:
+        if MESSAGE_FILE.exists():
+            # one-shot message – clear after use
+            MESSAGE_FILE.write_text("", encoding="utf-8")
+    except Exception:
+        pass
+
+
 def autopush(path: Path):
     if not has_changes(path):
         return
     branch = current_branch(path)
     stamp = time.strftime("%Y-%m-%d %H:%M:%S")
-    user_note = os.environ.get("AUTOPUSH_NOTE", "").strip()
+    # Priority: one-shot message file > session env var
+    user_note = read_message_file()
+    if not user_note:
+        user_note = os.environ.get("AUTOPUSH_NOTE", "").strip()
     try:
         subprocess.run(["git", "add", "-A"], cwd=path, check=True)
         # Build informative commit message from staged changes
@@ -57,6 +80,8 @@ def autopush(path: Path):
         subprocess.run(["git", "commit", "-m", commit_msg], cwd=path, check=True)
         subprocess.run(["git", "push", "origin", branch], cwd=path, check=True)
         print(f"✅ autopushed at {stamp} on {branch}")
+        if user_note:
+            clear_message_file()
     except subprocess.CalledProcessError as e:
         print(f"⚠️ autopush failed: {e}")
 
