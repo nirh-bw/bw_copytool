@@ -74,28 +74,24 @@ def autopush(path: Path):
             # Unstage message file if staged
             subprocess.run(["git", "reset", "HEAD", "--", rel_msg], cwd=path, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
-        # Build informative commit message from staged changes (after excluding msg file)
+        # Build a concise one-line commit message
         files_res = subprocess.run(["git", "diff", "--cached", "--name-only"], cwd=path, capture_output=True, text=True)
-        if not files_res.stdout.strip():
-            # Nothing staged after excluding the message file
-            return
-        stat_res = subprocess.run(["git", "diff", "--cached", "--stat"], cwd=path, capture_output=True, text=True)
-        files_list = "\n".join(f"- {line}" for line in files_res.stdout.strip().splitlines() if line)
-        stat_block = stat_res.stdout.strip()
-        lines = []
-        lines.append(f"autopush: {stamp}")
+        files_changed = [ln for ln in files_res.stdout.strip().splitlines() if ln]
+        if not files_changed:
+            return  # nothing staged after excluding message file
+        shortstat_res = subprocess.run(["git", "diff", "--cached", "--shortstat"], cwd=path, capture_output=True, text=True)
+        shortstat = (shortstat_res.stdout or "").strip()
+
         if user_note:
-            lines.append("")
-            lines.append(user_note)
-        if files_list:
-            lines.append("")
-            lines.append("Changed files:")
-            lines.append(files_list)
-        if stat_block:
-            lines.append("")
-            lines.append("Diffstat:")
-            lines.append(stat_block)
-        commit_msg = "\n".join(lines)
+            commit_msg = user_note
+        else:
+            first = files_changed[0]
+            suffix = f", +{len(files_changed)-1} more" if len(files_changed) > 1 else ""
+            # Example: "3 files changed, 18 insertions(+), 5 deletions(-) — bw_copy_tool.py, +2 more"
+            if shortstat:
+                commit_msg = f"{shortstat} — {first}{suffix}"
+            else:
+                commit_msg = f"Update {first}{suffix}"
         subprocess.run(["git", "commit", "-m", commit_msg], cwd=path, check=True)
         subprocess.run(["git", "push", "origin", branch], cwd=path, check=True)
         print(f"✅ autopushed at {stamp} on {branch}")
