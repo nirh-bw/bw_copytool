@@ -786,12 +786,12 @@ def main():
         print("1. Recordings")
         print("2. Bags")
         print("3. Logs")
-        print("4. Test Network Speed")
-        print("5. Diagnose Speed Issues")
+        # print("4. Test Network Speed")
+        # print("5. Diagnose Speed Issues")
         print("6. Speed Optimization Settings")
         print("7. Exit")
         print(f"🚀 Current speed setting: {SPEED_OPTIMIZATION.upper()}")
-        data_type = input("Choose (1/2/3/4/5/6/7): ").strip()
+        data_type = input("Choose (1/2/3/6/7): ").strip()
         
         session_operations += 1
         log_user_operation("MENU_SELECTION", "Data type selection", f"Choice: {data_type}", "PROCESSING")
@@ -828,18 +828,18 @@ def main():
                 print("❌ Invalid choice")
                 log_user_operation("SPEED_OPTIMIZATION", "Invalid choice", f"Choice: {speed_choice}", "FAILED")
             continue
-        elif data_type == "4":
-            log_user_operation("NETWORK_TEST", "Network speed test initiated", "Choice: 4", "PROCESSING")
-            test_network_speed(remote_user, remote_ip, password)
-            successful_operations += 1
-            log_user_operation("NETWORK_TEST", "Network speed test completed", "Choice: 4", "SUCCESS")
-            continue
-        elif data_type == "5":
-            log_user_operation("DIAGNOSE", "Speed diagnosis initiated", "Choice: 5", "PROCESSING")
-            diagnose_speed_issues(remote_user, remote_ip, password)
-            successful_operations += 1
-            log_user_operation("DIAGNOSE", "Speed diagnosis completed", "Choice: 5", "SUCCESS")
-            continue
+        # elif data_type == "4":
+        #     log_user_operation("NETWORK_TEST", "Network speed test initiated", "Choice: 4", "PROCESSING")
+        #     test_network_speed(remote_user, remote_ip, password)
+        #     successful_operations += 1
+        #     log_user_operation("NETWORK_TEST", "Network speed test completed", "Choice: 4", "SUCCESS")
+        #     continue
+        # elif data_type == "5":
+        #     log_user_operation("DIAGNOSE", "Speed diagnosis initiated", "Choice: 5", "PROCESSING")
+        #     diagnose_speed_issues(remote_user, remote_ip, password)
+        #     successful_operations += 1
+        #     log_user_operation("DIAGNOSE", "Speed diagnosis completed", "Choice: 5", "SUCCESS")
+        #     continue
         elif data_type not in ["1", "2", "3"]:
             print("❌ Invalid option.")
             log_user_operation("MENU_SELECTION", "Invalid data type selection", f"Choice: {data_type}", "FAILED", "Invalid option")
